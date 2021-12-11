@@ -112,7 +112,7 @@ def distribution(dataframe, features, comparaison=False, id_client=''):
     
     fig = make_subplots(rows=nb_row, cols=2,
                         subplot_titles=['{}'.format(feat) for feat in features],
-                        vertical_spacing=0.05)
+                        vertical_spacing=0.15)
     leg_num = False
     leg_cat = False
     
@@ -126,13 +126,15 @@ def distribution(dataframe, features, comparaison=False, id_client=''):
         if dataframe[feat].dtype == 'category':
             
             fig2=px.histogram(dataframe,
-                                       x=feat,
-                                       color='TARGET')
-            fig2.update_xaxes(tickangle=45)
+                              x=feat,
+                              color='TARGET')
+            fig2.update_xaxes(tickangle=45, type='category',
+                              showticklabels=True)
             
             if leg_cat:
                 fig2['data'][0]['showlegend'] = False
                 fig2['data'][1]['showlegend'] = False
+                
             else:
                 leg_cat=True
                 
