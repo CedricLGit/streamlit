@@ -17,9 +17,10 @@ import re
 
 st.set_page_config(layout='wide')
 
-data = pd.read_csv('Data_streamlit/train_sample.csv')
-data = preprocess(data)
-data = cleaning(data)
+raw_data = pd.read_csv('Data_streamlit/train_sample.csv')
+raw_data_reduce = reduce_memory_usage(raw_data)
+raw_data2 = cleaning(raw_data_reduce.copy())
+data = preprocess(raw_data2)
 data = data.rename(columns = lambda x:re.sub('[^A-Za-z0-9_]+', '', x))
 sample = pd.read_csv('Data_streamlit/new_v3.csv')
 sample2 = sample.drop('TARGET', axis=1)
@@ -119,8 +120,9 @@ elif pages == 'Analyse Exploratoire':
                  use_column_width=True)
     st.write('')
     st.write('')
-    shape = data.shape
-    st.markdown('Voici un apperçu du fichier principal : application_train.\
+    shape = raw_data2.shape
+    st.markdown('Voici un apperçu du fichier principal après avoir retiré les\
+                variables ayant plus de 50% de valeurs nulles.\
                 Celui-ci a une entrée par client et contient:\
                 <BR>\
                 <BR>\
@@ -129,7 +131,7 @@ elif pages == 'Analyse Exploratoire':
                 True)
     st.write('')
     
-    st.dataframe(data.head(8))
+    st.dataframe(raw_data2.head(8))
     st.write('')
     st.write('')
     st.markdown('### <div style="text-indent: 30px;"><u>Déséquilibre des classes</u></div>',
@@ -137,7 +139,7 @@ elif pages == 'Analyse Exploratoire':
 
     col10, col11 = st.columns(2)
     with col10:
-        st.plotly_chart(countplot(data, 'TARGET'), True)
+        st.plotly_chart(countplot(raw_data2, 'TARGET'), True)
     with col11:
         st.write('')
         st.write('')
@@ -175,7 +177,7 @@ elif pages == 'Analyse Exploratoire':
     col12, col13 = st.columns([9,1])
     with col12:    
         choices = st.multiselect(label ='Choisir les variables à afficher',
-                                 options=correlation(data).index)
+                                 options=recup_col(raw_data2, correlation(data).index))
     with col13:
         st.write('')
         st.write('')
@@ -184,7 +186,7 @@ elif pages == 'Analyse Exploratoire':
     if button:
 
         if len(choices) != 0:
-            st.plotly_chart(distribution(data, choices), True)
+            st.plotly_chart(distribution(raw_data2, choices), True)
         else:
             st.markdown('Veuillez sélectionner des variables à étudier.')
 
@@ -196,9 +198,8 @@ elif pages == 'Explication du modèle':
     st.markdown('### <div style="text-indent: 30px;"><u>Fonction coût métier</u></div>',
                 True)
     st.write('')
-    col7, col8 = st.columns(2)
-    with col7:  
-        st.markdown('<div style="text-align: justify;">La problématique à \
+    st.write('')
+    st.markdown('<div style="text-align: justify;">La problématique à \
                     laquelle le modèle cherche à répondre est la prédiction \
                     d\'un risque de défault de paiement de la part d\'un client.\
                     Pour celà nous allons mettre en place un fonction customisée\
@@ -213,13 +214,16 @@ elif pages == 'Explication du modèle':
                         meilleurs résultats comment le montrent les matrices de\
                         confusions ci contre.<div>',
                     True)
+    col7, col8, col9 = st.columns([1,3,1])
+    with col8:
+        st.image('Data_streamlit/confusion_matrix.png')
     st.write('')
     st.write('')
     st.markdown('### <div style="text-indent: 30px;"><u>Analyse du modèle</u></div>',
                 True)
     st.write('')
-    col9, col10 = st.columns([0.4, 0.6])
-    with col9:
+    col10, col11 = st.columns([0.4, 0.6])
+    with col10:
         st.markdown('<div style="text-align: justify;">Après avoir entraîné le \
                     modèle, nous pouvons regarder quelles features contribuent \
                     le plus aux prédictions de celui ci.\
@@ -236,7 +240,7 @@ elif pages == 'Explication du modèle':
         choices = st.selectbox(label ='Choisir le type de feature importance',
                                options=['weight', 'gain'],
                                index=1)
-    with col10:
+    with col11:
         xgb.plot_importance(model['clf'],
                             max_num_features=10,
                             importance_type=choices,
@@ -245,8 +249,8 @@ elif pages == 'Explication du modèle':
         plt.clf()
     st.write('')
     st.write('')
-    col11, col12 = st.columns([0.6, 0.4])
-    with col12:
+    col12, col13 = st.columns([0.6, 0.4])
+    with col13:
         st.write('')  
         st.markdown('<div style="text-align: justify;">Nous pouvons ensuite nous\
                     tourner vers SHAP pour expliquer notre modèle.\
@@ -260,7 +264,7 @@ elif pages == 'Explication du modèle':
         choices2 = st.selectbox(label ='Choisir le type de feature importance',
                                options=['dot', 'bar'],
                                index=1)
-    with col11:
+    with col12:
         shap.summary_plot(shap_values,
                           sample2.drop('SK_ID_CURR', axis=1),
                           max_display=10,
@@ -289,7 +293,7 @@ elif pages == 'Dashboard':
             st.markdown('### <center>SCORE = '+ result+'</center>',
                         True)        
                 
-            if float(result)>0.22346503:
+            if float(result)>0.19569081:
                 st.markdown('<center>Le score est supérieur au threshold fixé.\
                             <BR>Le crédit est <b>refusé</b>.</center>',
                             True)
@@ -338,11 +342,14 @@ elif pages == 'Dashboard':
     top10_pos = values_client.sort_values(idx[0], ascending=False,
                                           axis=1)
     top10_pos = top10_pos.columns[:10]
-
+    
+    selection = recup_col(raw_data2, top10_pos)
+    selection += recup_col(raw_data2, correlation(data).index)
+    selection = set(selection)
     choice = st.multiselect('Choisir les variables à comparer',
-                            options=top10_pos)                                 
+                            options=selection)                              
     if len(choice) != 0:
-        st.plotly_chart(distribution(sample,
+        st.plotly_chart(distribution(raw_data2,
                                       choice,
                                       comparaison=True,
                                       id_client=int(client_id)),
